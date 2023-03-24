@@ -1,8 +1,36 @@
+// Функция для отображения ошибок
+function showError(message) {
+    const errorElement = document.getElementById("error");
+    errorElement.textContent = message;
+}
+
+// Функция для отображения приветствия
+function showWelcome() {
+    const userName = document.getElementById("user-name");
+    userName.textContent = sessionStorage.getItem("username");
+    $("#login-container").fadeOut(300, function () {
+        $("#welcome-container").fadeIn(300);
+    });
+}
+
+// Функция для отображения формы логина
+function showLoginForm() {
+    $("#welcome-container").fadeOut(300, function () {
+        $("#login-container").fadeIn(300);
+    });
+}
+
+// Проверка аутентификации при загрузке страницы
+if (sessionStorage.getItem("authenticated") === "true") {
+    showWelcome();
+}
+
+// Обработка отправки формы
 document.getElementById("login-form").addEventListener("submit", function (event) {
     event.preventDefault();
+
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
-
     const formData = new FormData();
     formData.append("username", username);
     formData.append("password", password);
@@ -14,7 +42,9 @@ document.getElementById("login-form").addEventListener("submit", function (event
         .then((response) => response.json())
         .then((data) => {
             if (data.success) {
-                window.location.href = "success.php";
+                sessionStorage.setItem("authenticated", "true");
+                sessionStorage.setItem("username", username);
+                showWelcome();
             } else {
                 showError(data.error);
             }
@@ -24,18 +54,9 @@ document.getElementById("login-form").addEventListener("submit", function (event
         });
 });
 
-function showError(message) {
-    const errorContainer = document.getElementById("error-container");
-    errorContainer.innerText = message;
-
-    errorContainer.animate(
-        [
-            { opacity: 0, transform: "translateY(-10px)" },
-            { opacity: 1, transform: "translateY(0px)" },
-        ],
-        {
-            duration: 300,
-            easing: "ease-out",
-        }
-    );
-}
+// Обработка выхода
+document.getElementById("logout-btn").addEventListener("click", function () {
+    sessionStorage.removeItem("authenticated");
+    sessionStorage.removeItem("username");
+    showLoginForm();
+});
