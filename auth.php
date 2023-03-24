@@ -1,78 +1,89 @@
 <?php
-// Конфигурация
-require_once 'config.php';
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+require 'config.php';
 
-// Получение логина и пароля из формы
 $username = $_POST['username'];
 $password = $_POST['password'];
-
-// Функция для проверки принадлежности пользователя к группе
-function checkGroupMembership($ldap_conn, $user_dn, $group_dn): bool
+function getUserDN($ldap_conn, $username)
 {
-    $result = ldap_read($ldap_conn, $user_dn, "(memberOf={$group_dn})");
-    $entries = ldap_get_entries($ldap_conn, $result);
-    return ($entries['count'] > 0);
+    global $ldap_base_dn;
+    $search = ldap_search($ldap_conn, $ldap_base_dn, "sAMAccountName={$username}");
+    if ($search === false) {
+        return null;
+    }
+    $result = ldap_get_entries($ldap_conn, $search);
+    return $result[0]['dn'] ?? null;
 }
 
-// Функция для поиска DN пользователя
-function getUserDN($ldap_conn, $base_dn, $username) {
-    $result = ldap_search($ldap_conn, $base_dn, "(sAMAccountName={$username})");
-    if ($result === false) {
-        error_log("Ошибка поиска пользователя: " . ldap_error($ldap_conn));
+function getGroupDN($ldap_conn, $group)
+{
+    global $ldap_base_dn;
+    $search = ldap_search($ldap_conn, $ldap_base_dn, "cn={$group}");
+    if ($search === false) {
+        return null;
+    }
+    $result = ldap_get_entries($ldap_conn, $search);
+    return $result[0]['dn'] ?? null;
+}
+function checkGroupEx($ldap_conn, $userdn, $groupdn): bool
+{
+    $search = ldap_search($ldap_conn, $userdn, "memberOf={$groupdn}", ['dn']);
+    if ($search === false) {
+        return false;
     }
 
-    $entries = ldap_get_entries($ldap_conn, $result);
-    if ($entries['count'] > 0) {
-        return $entries[0]['dn'];
-    }
-
-    error_log("Пользователь не найден: " . $username);
-    return null;
+    $result = ldap_get_entries($ldap_conn, $search);
+    return isset($result[0]['dn']);
 }
 
-function getGroupDN($ldap_conn, $base_dn, $group) {
-    $result = ldap_search($ldap_conn, $base_dn, "(cn={$group})");
-    if ($result === false) {
-        error_log("Ошибка поиска группы: " . ldap_error($ldap_conn));
-    }
+header('Content-Type: application/json');
 
-    $entries = ldap_get_entries($ldap_conn, $result);
-    if ($entries['count'] > 0) {
-        return $entries[0]['dn'];
-    }
+$response = [
+    'success' => false,
+    'error' => 'Ошибка: Неизвестная ошибка',
+];
 
-    error_log("Группа не найдена: " . $group);
-    return null;
+if (empty($username) || empty($password)) {
+    $response['error'] = 'Ошибка: Пожалуйста, введите логин и пароль';
+    echo json_encode($response);
+    exit;
 }
 
-// Подключение к AD
 $ldap_conn = ldap_connect($ldap_host, $ldap_port);
 ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
 ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
 
-// Аутентификация
-$bind = @ldap_bind($ldap_conn, $username . $domain, $password);
-if ($bind) {
-    $user_dn = getUserDN($ldap_conn, $base_dn, $username);
-    $group_dn = getGroupDN($ldap_conn, $base_dn, $group);
-
-    if ($user_dn) {
-        $is_member = checkGroupMembership($ldap_conn, $user_dn, $group_dn);
-        if ($is_member) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => true]);
-        } else {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Доступ запрещен: пользователь не принадлежит к указанной группе.']);
-        }
-    } else {
-        header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Ошибка: пользователь или группа не найдены в AD']);
-    }
-} else {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'error' => 'Ошибка: Пользователь или пароль неверны']);;
+if (!$ldap_conn) {
+    $response['error'] = 'Ошибка: Невозможно подключиться к серверу LDAP';
+    echo json_encode($response);
+    exit;
 }
 
-// Закрытие соединения
+$ldap_bind = @ldap_bind($ldap_conn, $username . "@" . $ldap_domain, $password);
+
+if (!$ldap_bind) {
+    $response['error'] = 'Ошибка: Неверный логин или пароль';
+    echo json_encode($response);
+    exit;
+}
+
+$userdn = getUserDN($ldap_conn, $username);
+$groupdn = getGroupDN($ldap_conn, $ldap_group);
+
+if ($userdn && $groupdn) {
+    $auth = checkGroupEx($ldap_conn, $userdn, $groupdn);
+
+    if ($auth) {
+        $response['success'] = true;
+        $response['error'] = '';
+    } else {
+        $response['error'] = 'Ошибка: Пользователь или группа не найдены в AD';
+    }
+} else {
+    $response['error'] = 'Ошибка: Пользователь или группа не найдены в AD';
+}
+
 ldap_unbind($ldap_conn);
+echo json_encode($response);
