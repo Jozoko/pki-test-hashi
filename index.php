@@ -11,7 +11,7 @@
 <body>
 <div class="container">
     <!-- Вход -->
-    <div class="login-container" id="login-container">
+    <div class="login-container" id="login-container" style="display: none;">
         <div class="form-header">
             <h2>Вход</h2>
         </div>
@@ -27,7 +27,6 @@
             <div class="error-container" id="error-container"></div>
             <button type="submit" class="login-btn">Войти</button>
         </form>
-        <div class="error" id="error"></div>
     </div>
 
     <!-- Приветствие -->
