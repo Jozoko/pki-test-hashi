@@ -27,6 +27,7 @@
             <div class="error-container" id="error-container"></div>
             <button type="submit" class="login-btn">Войти</button>
         </form>
+        <div class="error" id="error"></div>
     </div>
 
     <!-- Приветствие -->

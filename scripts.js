@@ -1,5 +1,5 @@
 $(document).ready(function () {
-// Функция для отображения ошибок
+// Функция для отображения ошибок-
     function showError(message) {
         const errorElement = document.getElementById("error");
         errorElement.textContent = message;
