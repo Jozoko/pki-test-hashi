@@ -1,6 +1,5 @@
 <?php
 header('Content-Type: application/json');
-require 'config.php';
 require './controllers/authController.php';
 
 $username = $_POST['username'];
